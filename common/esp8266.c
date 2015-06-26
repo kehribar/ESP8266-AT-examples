@@ -267,6 +267,17 @@ uint16_t esp8266_fill_tcp_data(uint8_t *buf,uint16_t pos, const char *s)
   return (esp8266_fill_tcp_data_len(buf,pos,(uint8_t*)s,strlen(s)));
 }
 /*---------------------------------------------------------------------------*/
+uint16_t esp8266_create_GetRequest(const uint8_t* urlBase, uint8_t* urlSuffix, uint8_t* respBuff, uint16_t tcpLen)
+{
+  tcpLen = esp8266_fill_tcp_data(respBuff,tcpLen,"GET "); 
+  tcpLen = esp8266_fill_tcp_data(respBuff,tcpLen,urlSuffix); 
+  tcpLen = esp8266_fill_tcp_data(respBuff,tcpLen," HTTP/1.1\r\nUser-Agent: curl/7.37.1\r\nHost: "); 
+  tcpLen = esp8266_fill_tcp_data(respBuff,tcpLen,urlBase); 
+  tcpLen = esp8266_fill_tcp_data(respBuff,tcpLen,"\r\nAccept: */*\r\n\r\n"); 
+  
+  return tcpLen;
+}
+/*---------------------------------------------------------------------------*/
 static int8_t esp8266_waitForChar(uint32_t timeoutLimit)
 {
   while(RingBuffer_GetCount(&esp8266_ringBuf) == 0)

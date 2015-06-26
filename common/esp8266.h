@@ -32,6 +32,8 @@ int8_t esp8266_createTCPSocket(uint16_t port);
 
 int8_t esp8266_closeTCPLink(uint8_t sockId);
 
+uint16_t create_GetRequest(const uint8_t* urlBase, uint8_t* urlSuffix, uint8_t* respBuff, uint16_t tcpLen);
+
 int8_t esp8266_createWifiNetwork(char* ssidName, char* password);
 
 int8_t esp8266_connectWifiNetwork(char* ssidName, char* password);
