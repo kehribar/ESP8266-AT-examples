@@ -32,8 +32,6 @@ int8_t esp8266_createTCPSocket(uint16_t port);
 
 int8_t esp8266_closeTCPLink(uint8_t sockId);
 
-uint16_t create_GetRequest(const uint8_t* urlBase, uint8_t* urlSuffix, uint8_t* respBuff, uint16_t tcpLen);
-
 int8_t esp8266_createWifiNetwork(char* ssidName, char* password);
 
 int8_t esp8266_connectWifiNetwork(char* ssidName, char* password);
@@ -45,6 +43,8 @@ int8_t esp8266_openTCPSocket(uint8_t sockId,char* address, uint16_t port);
 uint16_t esp8266_fill_tcp_data_len(uint8_t *buf,uint16_t pos, const uint8_t *s, uint8_t len);
 
 int8_t esp8266_sendTCPData(uint32_t timeoutLimit, uint8_t sockId, uint8_t* buf, uint16_t len);
+
+uint16_t esp8266_create_GetRequest(const uint8_t* urlBase, uint8_t* urlSuffix, uint8_t* respBuff, uint16_t tcpLen);
 
 int8_t esp8266_getTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t maxSize, uint16_t* actualDataLen, uint8_t* sockId);
 
