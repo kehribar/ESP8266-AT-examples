@@ -6,17 +6,268 @@
 /*---------------------------------------------------------------------------*/
 static uint32_t m_timeoutCounter; 
 /*---------------------------------------------------------------------------*/
+static void esp8266_flushBuffer();
+static uint8_t esp8266_getMessageID();
+static uint16_t StrTo16Uint(char* str);
+static uint16_t esp8266_getMessageLength();
+static int8_t esp8266_waitForChar(uint32_t timeoutLimit);
+static int8_t esp8266_checkOkError(uint32_t timeoutLimit);
+static int8_t esp8266_waitForMessage(const char* checkmsg, uint32_t timeoutLimit);
+/*---------------------------------------------------------------------------*/
 int8_t esp8266_init()
 {
-  esp8266_hal_init();
+  esp8266_hal_init();  
 
   /* Wait for the powerup */
-  esp8266_waitForMessage("]\r\n",ESP8266_10SecTimeout);  
+  esp8266_waitForMessage("ready\r\n",ESP8266_10SecTimeout);
+  
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_connectWifiNetwork(char* ssidName, char* password)
+{
+  uint8_t ipTrial = 0;
+
+  /* Change operating mode */
+  xfprintf(esp8266_hal_sendChar,"AT+CWMODE=1\r\n");
+
+  /* Fixed delay ... */
+  esp8266_hal_delayMiliseconds(100);
+
+  /* Reset the wifi module */  
+  xfprintf(esp8266_hal_sendChar,"AT+RST\r\n");
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  /* Wait for the powerup */
+  esp8266_waitForMessage("ready\r\n",ESP8266_10SecTimeout);
+
+  /* SSID details */
+  xfprintf(esp8266_hal_sendChar,"AT+CWJAP=\"%s\",\"%s\"\r\n",ssidName,password);
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }  
+
+  /* Wait until system gets IP */  
+  do
+  {
+    ipTrial++;
+    esp8266_hal_delayMiliseconds(10);
+    xfprintf(esp8266_hal_sendChar,"AT+CIFSR\r\n"); 
+  }
+  while((esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK) && (ipTrial < 50));
+
+  /* Reboot if neccessary */
+  if(ipTrial == 50)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  xfprintf(esp8266_hal_sendChar,"AT+CIPMUX=1\r\n");
+  
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }  
 
   return ESP8266_OK;
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_waitForChar(uint32_t timeoutLimit)
+int8_t esp8266_createWifiNetwork(char* ssidName, char* password)
+{
+  uint8_t ipTrial = 0;
+
+  /* Change operating mode */
+  xfprintf(esp8266_hal_sendChar,"AT+CWMODE=2\r\n");
+
+  /* Fixed delay ... */
+  esp8266_hal_delayMiliseconds(100);
+
+  /* Reset the wifi module */
+  xfprintf(esp8266_hal_sendChar,"AT+RST\r\n");
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  /* Wait for the powerup */
+  esp8266_waitForMessage("ready\r\n",ESP8266_10SecTimeout);  
+
+  /* SSID details */
+  xfprintf(esp8266_hal_sendChar,"AT+CWSAP=\"%s\",\"%s\",1,3\r\n",ssidName,password);
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  /* Wait until system gets IP */  
+  do
+  {
+    ipTrial++;
+    esp8266_hal_delayMiliseconds(10);     
+    xfprintf(esp8266_hal_sendChar,"AT+CIFSR\r\n"); 
+  }
+  while((esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK) && (ipTrial < 50));
+
+  /* Reboot if neccessary */
+  if(ipTrial == 50)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  xfprintf(esp8266_hal_sendChar,"AT+CIPMUX=1\r\n");
+  
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }  
+
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_openTCPSocket(uint8_t sockId, char* address, uint16_t port)
+{
+  /* TCP socket details */
+  xfprintf(esp8266_hal_sendChar,"AT+CIPSTART=%d,\"TCP\",\"%s\",%d\r\n",sockId,address,port);
+  
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }  
+  
+  esp8266_waitForMessage("Linked\r\n",ESP8266_10SecTimeout);
+
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_createTCPSocket(uint16_t port)
+{
+  /* Host a TCP server at a specific port */
+  xfprintf(esp8266_hal_sendChar,"AT+CIPSERVER=1,%u\r\n",port);
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }
+
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_closeTCPLink(uint8_t sockId)
+{  
+  xfprintf(esp8266_hal_sendChar,"AT+CIPCLOSE=%d\r\n",sockId);
+
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_sendTCPData(uint32_t timeoutLimit, uint8_t sockId, uint8_t* buf, uint16_t len)
+{
+  uint16_t t16;
+
+  /* Prepare to send data ... */
+  xfprintf(esp8266_hal_sendChar,"AT+CIPSEND=%d,%d\r\n",sockId,len);
+
+  if(esp8266_waitForMessage("> ",timeoutLimit) != ESP8266_OK)
+  {
+    return ESP8266_ERROR;
+  }
+
+  /* Send the data ... */
+  for(t16=0;t16<len;t16++)
+  {
+    esp8266_hal_sendChar(buf[t16]);
+  }
+
+  /* Reboot if neccessary */
+  if(esp8266_checkOkError(timeoutLimit) != ESP8266_OK)
+  {
+    esp8266_hal_rebootSystem();
+  }  
+
+  return ESP8266_OK;
+}
+/*---------------------------------------------------------------------------*/
+int8_t esp8266_getTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t maxSize, uint16_t* actualDataLen, uint8_t* sockId)
+{
+  uint16_t len;
+  uint16_t t16;
+
+  memset(buf,0x00,maxSize);
+
+  if(esp8266_waitForMessage("+IPD,",timeoutLimit) == ESP8266_TIMEOUT)
+  {
+    *actualDataLen = 0;
+    return ESP8266_TIMEOUT;
+  }
+
+  *sockId = esp8266_getMessageID();  
+  len = esp8266_getMessageLength();  
+
+  /* Handle the overflow silently ... */
+  if(len > maxSize)
+  {
+    len = maxSize;
+  }
+
+  /* Fetch the data ... */
+  for(t16=0;t16<len;t16++)
+  {
+    m_timeoutCounter = 0;
+    if(esp8266_waitForChar(ESP8266_1SecTimeout) == ESP8266_TIMEOUT)
+    {      
+      esp8266_hal_rebootSystem();
+    }
+
+    buf[t16] = RingBuffer_Remove(&esp8266_ringBuf);
+  }
+
+  *actualDataLen = len;
+
+  return ESP8266_OK;
+}
+/*-----------------------------------------------------------------------------
+/ fill a binary string of len data into the tcp packet
+/ taken from tuxgraphics ip stack
+/----------------------------------------------------------------------------*/
+uint16_t esp8266_fill_tcp_data_len(uint8_t *buf,uint16_t pos, const uint8_t *s, uint8_t len)
+{
+  // fill in tcp data at position pos
+  while (len) 
+  {
+    buf[pos]=*s;
+    pos++;
+    s++;
+    len--;
+  }
+  return(pos);
+}
+/*-----------------------------------------------------------------------------
+/ fill in tcp data at position pos. pos=0 means start of
+/ tcp data. Returns the position at which the string after
+/ this string could be filled.
+/ taken from tuxgraphics ip stack
+/----------------------------------------------------------------------------*/
+uint16_t esp8266_fill_tcp_data(uint8_t *buf,uint16_t pos, const char *s)
+{
+  return (esp8266_fill_tcp_data_len(buf,pos,(uint8_t*)s,strlen(s)));
+}
+/*---------------------------------------------------------------------------*/
+static int8_t esp8266_waitForChar(uint32_t timeoutLimit)
 {
   while(RingBuffer_GetCount(&esp8266_ringBuf) == 0)
   {    
@@ -31,13 +282,12 @@ int8_t esp8266_waitForChar(uint32_t timeoutLimit)
   return ESP8266_OK;   
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_waitForMessage(const char* checkmsg, uint32_t timeoutLimit)
+static int8_t esp8266_waitForMessage(const char* checkmsg, uint32_t timeoutLimit)
 {
   uint8_t ch;
   uint8_t run = 1;
   uint16_t in = 0;  
-  uint32_t timeout = 0;
-
+  
   m_timeoutCounter = 0;
   
   while(run == 1)
@@ -75,7 +325,7 @@ int8_t esp8266_waitForMessage(const char* checkmsg, uint32_t timeoutLimit)
   return ESP8266_OK;
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_checkOkError(uint32_t timeoutLimit)
+static int8_t esp8266_checkOkError(uint32_t timeoutLimit)
 {
   uint8_t ch;
   uint8_t ok_in = 0;
@@ -141,95 +391,20 @@ int8_t esp8266_checkOkError(uint32_t timeoutLimit)
   return ESP8266_UNKNOWN;
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_connectWifiNetwork(char* ssidName, char* password)
+static void esp8266_flushBuffer()
 {
-  uint8_t ipTrial = 0;
-
-  /* SSID details */
-  xfprintf(esp8266_hal_sendChar,"AT+CWJAP=\"%s\",\"%s\"\r\n",ssidName,password);
-
-  /* Reboot if neccessary */
-  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
+  while(!RingBuffer_IsEmpty(&esp8266_ringBuf))
   {
-    esp8266_hal_rebootSystem();
-  }  
-
-  /* Wait until system gets IP */  
-  do
-  {
-    ipTrial++;
-    esp8266_hal_delayMiliseconds(10);     
-    xfprintf(esp8266_hal_sendChar,"AT+CIFSR\r\n"); 
+    RingBuffer_Remove(&esp8266_ringBuf);
   }
-  while((esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK) && (ipTrial < 50));
-
-  /* Reboot if neccessary */
-  if(ipTrial == 50)
-  {
-    esp8266_hal_rebootSystem();
-  }
-
-  xfprintf(esp8266_hal_sendChar,"AT+CIPMUX=1\r\n");
-  
-  /* Reboot if neccessary */
-  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
-  {
-    esp8266_hal_rebootSystem();
-  }  
-
-  return ESP8266_OK;
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_openTCPSocket(char* address, uint16_t port)
-{
-  /* TCP socket details */
-  xfprintf(esp8266_hal_sendChar,"AT+CIPSTART=0,\"TCP\",\"%s\",%d\r\n",address,port);
-  
-  /* Reboot if neccessary */
-  if(esp8266_checkOkError(ESP8266_10SecTimeout) != ESP8266_OK)
-  {
-    esp8266_hal_rebootSystem();
-  }  
-  
-  esp8266_waitForMessage("Linked\r\n",ESP8266_10SecTimeout);
-
-  return ESP8266_OK;
-}
-/*---------------------------------------------------------------------------*/
-int8_t esp8266_sendTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t len)
-{
-  uint16_t t16;
-
-  /* Prepare to send data ... */
-  xfprintf(esp8266_hal_sendChar,"AT+CIPSEND=0,%d\r\n",len);
-
-  if(esp8266_waitForMessage("> ",timeoutLimit) != ESP8266_OK)
-  {
-    return ESP8266_ERROR;
-  }
-
-  /* Send the data ... */
-  for(t16=0;t16<len;t16++)
-  {
-    esp8266_hal_sendChar(buf[t16]);
-  }
-
-  /* Reboot if neccessary */
-  if(esp8266_checkOkError(timeoutLimit) != ESP8266_OK)
-  {
-    esp8266_hal_rebootSystem();
-  }  
-
-  return ESP8266_OK;
-}
-/*---------------------------------------------------------------------------*/
-uint16_t esp8266_getMessageLength()
+static uint8_t esp8266_getMessageID()
 {
   uint8_t run;
   uint8_t in = 0;  
-  uint8_t lenbuf[8];  
-
-  /* Skip the initial comma for 'id' */
+  uint8_t lenbuf[8]; 
+  
   run = 1;  
   while(run)
   {
@@ -239,13 +414,27 @@ uint16_t esp8266_getMessageLength()
       esp8266_hal_rebootSystem();
     }
 
-    lenbuf[0] = RingBuffer_Remove(&esp8266_ringBuf);
+    lenbuf[in] = RingBuffer_Remove(&esp8266_ringBuf);
 
-    if(lenbuf[0] == ',')
-    {
+    if(lenbuf[in] == ',')
+    {      
+      lenbuf[in] = '\0';
       run = 0;
     }
+    else
+    {
+      in++;
+    }
   }
+
+  return StrTo16Uint(lenbuf);
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t esp8266_getMessageLength()
+{
+  uint8_t run;
+  uint8_t in = 0;  
+  uint8_t lenbuf[8];  
   
   /* Get the data length */
   run = 1;
@@ -273,43 +462,7 @@ uint16_t esp8266_getMessageLength()
   return StrTo16Uint(lenbuf);
 }
 /*---------------------------------------------------------------------------*/
-int8_t esp8266_getTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t maxSize, uint16_t* actualDataLen)
-{
-  uint16_t len;
-  uint16_t t16;
-
-  if(esp8266_waitForMessage("+IPD,",timeoutLimit) == ESP8266_TIMEOUT)
-  {
-    *actualDataLen = 0;
-    return ESP8266_TIMEOUT;
-  }
-
-  len = esp8266_getMessageLength();  
-
-  /* Handle the overflow silently ... */
-  if(len > maxSize)
-  {
-    len = maxSize;
-  }
-
-  /* Fetch the data ... */
-  for(t16=0;t16<len;t16++)
-  {
-    m_timeoutCounter = 0;
-    if(esp8266_waitForChar(ESP8266_1SecTimeout) == ESP8266_TIMEOUT)
-    {      
-      esp8266_hal_rebootSystem();
-    }
-
-    buf[t16] = RingBuffer_Remove(&esp8266_ringBuf);
-  }
-
-  *actualDataLen = len;
-
-  return ESP8266_OK;
-}
-/*---------------------------------------------------------------------------*/
-uint16_t StrTo16Uint(char* str)
+static uint16_t StrTo16Uint(char* str)
 {
   /* taken from: https://github.com/cnlohr/wi07clight/ */
   uint16_t ret = 0;

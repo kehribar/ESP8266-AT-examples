@@ -14,7 +14,7 @@ int transport_init()
 int transport_sendPacketBuffer(int sock, uint8_t* buf, int buflen)
 {
   int8_t res;
-  res = esp8266_sendTCPData(ESP8266_10SecTimeout,buf,buflen);  
+  res = esp8266_sendTCPData(ESP8266_10SecTimeout,0,buf,buflen);  
 
   if(res != ESP8266_OK)
   {
@@ -30,14 +30,20 @@ int transport_getdata(uint8_t* buf, int count)
   int i;
   int t16;
   int8_t res;
+  uint8_t sockId;
 
   while(count > RingBuffer_GetCount(&tcpBuffer))
   {
-    res = esp8266_getTCPData(ESP8266_1SecTimeout,commonBuffer,sizeof(commonBuffer),&rv);       
+    res = esp8266_getTCPData(ESP8266_1SecTimeout,commonBuffer,sizeof(commonBuffer),&rv,&sockId);       
 
     if(res == ESP8266_TIMEOUT)
     {
       return 0;
+    }
+
+    if(sockId != 0)
+    {
+      esp8266_hal_rebootSystem();
     }
     
     for(i=0;i<rv;i++)
@@ -60,14 +66,14 @@ int transport_getdata(uint8_t* buf, int count)
 /*---------------------------------------------------------------------------*/
 int transport_open(char* addr, int port)
 {  
-  esp8266_openTCPSocket(addr,port);
+  esp8266_openTCPSocket(0,addr,port);
   
   return 0;
 }
 /*---------------------------------------------------------------------------*/
 int transport_close(int sock)
 {
-  /* ... */
+  esp8266_closeTCPLink(0);
 
   return 0;
 }

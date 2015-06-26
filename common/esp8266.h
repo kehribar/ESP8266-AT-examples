@@ -3,6 +3,7 @@
 /
 /----------------------------------------------------------------------------*/
 #include <stdint.h>
+#include <string.h>
 #include "xprintf.h"
 #include "ringBuffer.h"
 
@@ -21,25 +22,29 @@
 
 /*---------------------------------------------------------------------------*/
 
+#define HTTP_RESPONSE_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\nPragma: no-cache\r\n\r\n"
+
+/*---------------------------------------------------------------------------*/
+
 int8_t esp8266_init();
 
-int8_t esp8266_waitForChar(uint32_t timeoutLimit);
+int8_t esp8266_createTCPSocket(uint16_t port);
 
-int8_t esp8266_checkOkError(uint32_t timeoutLimit);
+int8_t esp8266_closeTCPLink(uint8_t sockId);
 
-int8_t esp8266_openTCPSocket(char* address, uint16_t port);
+int8_t esp8266_createWifiNetwork(char* ssidName, char* password);
 
 int8_t esp8266_connectWifiNetwork(char* ssidName, char* password);
 
-int8_t esp8266_waitForMessage(const char* checkmsg, uint32_t timeoutLimit);
+uint16_t esp8266_fill_tcp_data(uint8_t *buf,uint16_t pos, const char *s);
 
-int8_t esp8266_sendTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t len);
+int8_t esp8266_openTCPSocket(uint8_t sockId,char* address, uint16_t port);
 
-int8_t esp8266_getTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t maxSize, uint16_t* actualDataLen);
+uint16_t esp8266_fill_tcp_data_len(uint8_t *buf,uint16_t pos, const uint8_t *s, uint8_t len);
 
-uint16_t StrTo16Uint(char* str);
+int8_t esp8266_sendTCPData(uint32_t timeoutLimit, uint8_t sockId, uint8_t* buf, uint16_t len);
 
-uint16_t esp8266_getMessageLength();
+int8_t esp8266_getTCPData(uint32_t timeoutLimit, uint8_t* buf, uint16_t maxSize, uint16_t* actualDataLen, uint8_t* sockId);
 
 /*---------------------------------------------------------------------------*/
 
